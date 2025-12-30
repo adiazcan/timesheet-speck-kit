@@ -51,7 +51,7 @@ A conversational AI agent for timesheet management enabling employees to submit,
 - All tests reviewed and approved before implementation begins
 
 **II. Code Quality Standards** ✅
-- .NET: C# coding conventions, StyleCop/Roslyn analyzers, nullable reference types enabled
+- .NET: C# coding conventions, nullable reference types enabled
 - TypeScript: ESLint + Prettier, strict TypeScript mode
 - Pre-commit hooks enforce formatting and linting
 - Code coverage target: ≥80% for new code

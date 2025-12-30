@@ -34,8 +34,8 @@ builder.Services.AddCosmosDb(builder.Configuration);
 // Blob Storage for audit logs
 builder.Services.AddBlobStorage(builder.Configuration);
 
-// Custom Application Insights telemetry (using explicit method to avoid ambiguity)
-ApplicationInsightsConfig.AddApplicationInsightsTelemetry(builder.Services, builder.Configuration);
+// Custom Application Insights telemetry
+builder.Services.AddCustomApplicationInsights(builder.Configuration);
 
 // Azure Key Vault for secrets management
 builder.Services.AddKeyVault(builder.Configuration);
@@ -43,6 +43,12 @@ builder.Services.AddKeyVault(builder.Configuration);
 // ========================================
 // Business Logic Services
 // ========================================
+
+// User claims extraction
+builder.Services.AddScoped<IUserClaimsService, UserClaimsService>();
+
+// Event handlers for decoupled communication
+builder.Services.AddScoped<HRAgent.Api.Events.ISubmissionFailedHandler, SubmissionFailedEventHandler>();
 
 // Conversation storage
 builder.Services.AddScoped<ConversationStore>();
@@ -80,7 +86,7 @@ builder.Services.AddHttpClient<FactorialHRService>(client =>
 {
     var baseUrl = builder.Configuration["FactorialHR:BaseUrl"] ?? "https://api.factorialhr.com";
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(90);
 })
 .AddStandardResilienceHandler(options =>
 {
@@ -89,10 +95,12 @@ builder.Services.AddHttpClient<FactorialHRService>(client =>
     options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
     options.Retry.UseJitter = true;
     
-    // Circuit breaker: Break after 5 consecutive failures, retry after 30s
+    // Circuit breaker: Break after 50% failure rate over 10 requests, retry after 60s
+    // Note: SamplingDuration must be at least 2x the AttemptTimeout
     options.CircuitBreaker.FailureRatio = 0.5;
-    options.CircuitBreaker.MinimumThroughput = 5;
-    options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
+    options.CircuitBreaker.MinimumThroughput = 10;
+    options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(60); // At least 2x AttemptTimeout
+    options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(60);
     
     // Timeout per attempt: 30 seconds
     options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(30);
@@ -103,6 +111,13 @@ builder.Services.AddHttpClient<FactorialHRService>(client =>
 
 // Background service for submission retry queue
 builder.Services.AddHostedService<HRAgent.Api.Jobs.SubmissionRetryProcessor>();
+
+// ========================================
+// Authentication & Authorization
+// ========================================
+
+// Microsoft Entra ID (Azure AD) authentication
+builder.Services.AddEntraIdAuthentication(builder.Configuration);
 
 // ========================================
 // API Services
@@ -163,15 +178,24 @@ app.UseCors();
 // HTTPS redirection
 app.UseHttpsRedirection();
 
-// Authentication & Authorization (will be configured in T013-T015f)
-// app.UseAuthentication();
-// app.UseAuthorization();
+// Authentication & Authorization
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Controllers
 app.MapControllers();
 
 // Service defaults endpoints (health checks, metrics)
 app.MapDefaultEndpoints();
+
+// Note: Health checks are configured in HRAgent.ServiceDefaults/Extensions.cs
+// To add custom health checks for Cosmos DB, Blob Storage, and Factorial HR:
+// 1. Install Microsoft.Extensions.Diagnostics.HealthChecks.* packages
+// 2. Add builder.Services.AddHealthChecks()
+//    .AddCosmosDb(cosmosClient, tags: new[] { "ready", "db" })
+//    .AddAzureBlobStorage(blobServiceClient, tags: new[] { "ready", "storage" })
+//    .AddUrlGroup(new Uri(factorialHRBaseUrl), "Factorial HR API", tags: new[] { "ready", "external" });
+// 3. Health checks are exposed via HealthController at /api/health, /api/health/ready, /api/health/live
 
 // ========================================
 // Run Application

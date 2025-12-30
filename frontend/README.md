@@ -1,73 +1,86 @@
-# React + TypeScript + Vite
+# HR Chat Agent - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Modern React frontend for the HR Chat Agent timesheet management system.
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+This frontend provides a conversational interface for employees to manage their timesheets through natural language interactions. Built with React 18, TypeScript, Vite, and shadcn/ui components.
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Conversational UI**: Chat-based interface for timesheet management
+- **Real-time Updates**: Server-Sent Events (SSE) for live agent responses
+- **Modern Stack**: React 18, TypeScript, Vite, TailwindCSS
+- **Component Library**: shadcn/ui for consistent, accessible UI components
+- **State Management**: Zustand for lightweight, efficient state management
+- **Timezone Detection**: Automatic browser timezone detection for accurate timestamps
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Fast build tool and dev server
+- **TailwindCSS** - Utility-first CSS
+- **shadcn/ui** - High-quality React components
+- **Zustand** - State management
+- **ESLint + Prettier** - Code quality
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Development
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+\`\`\`bash
+# Install dependencies
+npm install
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
-```
+# Start dev server (http://localhost:5173)
+npm run dev
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+# Build for production
+npm run build
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x';
-import reactDom from 'eslint-plugin-react-dom';
+# Preview production build
+npm run preview
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
-```
+# Lint code
+npm run lint
+\`\`\`
+
+## Project Structure
+
+\`\`\`
+frontend/
+├── src/
+│   ├── components/       # React components
+│   │   ├── chat/         # Chat interface components
+│   │   ├── profile/      # User profile components
+│   │   └── ui/           # shadcn/ui components
+│   ├── store/            # Zustand stores
+│   ├── services/         # API clients
+│   ├── utils/            # Utility functions
+│   └── App.tsx           # Main application
+├── public/               # Static assets
+└── package.json
+\`\`\`
+
+## Environment Variables
+
+Create a \`.env\` file:
+
+\`\`\`env
+VITE_API_URL=http://localhost:5000
+\`\`\`
+
+## Integration with Backend
+
+The frontend communicates with the HRAgent.Api backend via:
+- REST API for queries
+- Server-Sent Events (SSE) for streaming conversation responses
+- AG-UI protocol for structured agent communication
+
+See [../specs/001-hr-chat-agent/contracts/ag-ui-protocol.md](../specs/001-hr-chat-agent/contracts/ag-ui-protocol.md) for protocol details.
+
+## Learn More
+
+- [Vite Documentation](https://vitejs.dev/)
+- [React Documentation](https://react.dev/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [TailwindCSS](https://tailwindcss.com/)

@@ -13,25 +13,40 @@ public static class ApplicationInsightsConfig
     /// <summary>
     /// Registers Application Insights with custom telemetry tracking
     /// </summary>
-    public static IServiceCollection AddApplicationInsightsTelemetry(
+    public static IServiceCollection AddCustomApplicationInsights(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Application Insights is automatically configured via service defaults
-        // This adds custom telemetry processors and initializers
+        // Get connection string from configuration
+        var connectionString = configuration["ApplicationInsights:ConnectionString"] 
+            ?? configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
         
-        services.AddApplicationInsightsTelemetry(options =>
+        // Check if connection string is valid (not null, empty, or placeholder)
+        var isValidConnectionString = !string.IsNullOrEmpty(connectionString) 
+            && !connectionString.Contains("00000000-0000-0000-0000-000000000000")
+            && !connectionString.Equals("placeholder", StringComparison.OrdinalIgnoreCase);
+        
+        // Only register Application Insights if connection string is valid
+        if (isValidConnectionString)
         {
-            options.ConnectionString = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-            options.EnableAdaptiveSampling = true;
-            options.EnableQuickPulseMetricStream = true;
-        });
-        
-        // Add custom telemetry initializer for HR Agent context
-        services.AddSingleton<ITelemetryInitializer, HRAgentTelemetryInitializer>();
-        
-        // Register TelemetryClient wrapper for custom metrics
-        services.AddScoped<ICustomTelemetry, CustomTelemetryService>();
+            services.AddApplicationInsightsTelemetry(options =>
+            {
+                options.ConnectionString = connectionString;
+                options.EnableAdaptiveSampling = true;
+                options.EnableQuickPulseMetricStream = true;
+            });
+            
+            // Add custom telemetry initializer for HR Agent context
+            services.AddSingleton<ITelemetryInitializer, HRAgentTelemetryInitializer>();
+            
+            // Register TelemetryClient wrapper for custom metrics
+            services.AddScoped<ICustomTelemetry, CustomTelemetryService>();
+        }
+        else
+        {
+            // Register no-op implementation if Application Insights is not configured
+            services.AddScoped<ICustomTelemetry, NoOpCustomTelemetryService>();
+        }
         
         return services;
     }
@@ -144,4 +159,15 @@ public class CustomTelemetryService : ICustomTelemetry
         _telemetryClient.TrackMetric("Conversation.ToolCallCount", toolCallCount);
         _telemetryClient.TrackMetric("Conversation.TotalDuration", totalDurationMs);
     }
+}
+
+/// <summary>
+/// No-op implementation for when Application Insights is not configured
+/// </summary>
+public class NoOpCustomTelemetryService : ICustomTelemetry
+{
+    public void TrackIntentClassification(string intent, double confidence, long durationMs) { }
+    public void TrackFactorialHRCall(string operation, bool success, long durationMs, int? statusCode = null) { }
+    public void TrackAgentExecution(string agentName, bool success, long durationMs) { }
+    public void TrackConversationMetrics(int messageCount, int toolCallCount, long totalDurationMs) { }
 }

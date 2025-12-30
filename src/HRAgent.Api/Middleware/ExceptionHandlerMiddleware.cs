@@ -40,6 +40,17 @@ public class ExceptionHandlerMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        // Check if this is an SSE stream (AG-UI protocol)
+        var isSSE = context.Response.ContentType?.Contains("text/event-stream") == true ||
+                    context.Request.Headers.Accept.ToString().Contains("text/event-stream");
+
+        if (isSSE)
+        {
+            // For SSE, send error as an event instead of closing the stream
+            await HandleSSEErrorAsync(context, exception);
+            return;
+        }
+
         context.Response.ContentType = "application/json";
 
         var errorResponse = new ErrorResponse
@@ -110,6 +121,48 @@ public class ExceptionHandlerMiddleware
         });
 
         await context.Response.WriteAsync(json);
+    }
+
+    /// <summary>
+    /// Handles exceptions for Server-Sent Events (SSE) streams
+    /// Sends error as an AG-UI error event instead of breaking the stream
+    /// </summary>
+    private async Task HandleSSEErrorAsync(HttpContext context, Exception exception)
+    {
+        var errorType = exception switch
+        {
+            UnauthorizedAccessException => "unauthorized",
+            ArgumentException => "validation_error",
+            InvalidOperationException => "invalid_operation",
+            KeyNotFoundException => "not_found",
+            TimeoutException => "timeout",
+            HttpRequestException => "external_service_error",
+            _ => "internal_error"
+        };
+
+        var errorMessage = _environment.IsDevelopment() 
+            ? exception.Message 
+            : "An error occurred while processing your request";
+
+        // Send AG-UI error event
+        var errorEvent = new
+        {
+            type = "error",
+            error_type = errorType,
+            message = errorMessage,
+            timestamp = DateTimeOffset.UtcNow,
+            trace_id = context.TraceIdentifier
+        };
+
+        var eventData = JsonSerializer.Serialize(errorEvent, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        // Write SSE event format
+        await context.Response.WriteAsync($"event: error\n");
+        await context.Response.WriteAsync($"data: {eventData}\n\n");
+        await context.Response.Body.FlushAsync();
     }
 }
 

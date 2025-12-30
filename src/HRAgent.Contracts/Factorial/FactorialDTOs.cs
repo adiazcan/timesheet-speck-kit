@@ -114,4 +114,43 @@ public class TimesheetResponse
     
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
+    
+    /// <summary>
+    /// Success indicator for timesheet operations
+    /// </summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+    
+    /// <summary>
+    /// Timesheet entry ID returned after successful operation
+    /// </summary>
+    [JsonPropertyName("timesheet_id")]
+    public string? TimesheetId { get; set; }
+    
+    /// <summary>
+    /// Response message from the API
+    /// </summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
+/// <summary>
+/// Response containing current timesheet status for an employee
+/// </summary>
+public class TimesheetStatusResponse
+{
+    [JsonPropertyName("employee_id")]
+    public string EmployeeId { get; set; } = string.Empty;
+    
+    [JsonPropertyName("is_clocked_in")]
+    public bool IsClockedIn { get; set; }
+    
+    [JsonPropertyName("clock_in_time")]
+    public DateTimeOffset? ClockInTime { get; set; }
+    
+    [JsonPropertyName("current_hours")]
+    public decimal CurrentHours { get; set; }
+    
+    [JsonPropertyName("date")]
+    public DateOnly Date { get; set; }
 }

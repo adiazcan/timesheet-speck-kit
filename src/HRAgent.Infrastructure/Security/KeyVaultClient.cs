@@ -22,7 +22,8 @@ public static class KeyVaultConfig
         
         if (string.IsNullOrEmpty(keyVaultEndpoint))
         {
-            // Key Vault not configured - skip registration (development scenario)
+            // Key Vault not configured - use configuration-based fallback (development scenario)
+            services.AddScoped<ISecretsManager, ConfigurationSecretsManager>();
             return services;
         }
         
@@ -90,5 +91,40 @@ public class KeyVaultSecretsManager : ISecretsManager
             _logger.LogError(ex, "Failed to set secret {SecretName} in Key Vault", secretName);
             throw;
         }
+    }
+}
+
+/// <summary>
+/// Configuration-based secrets manager for development scenarios (fallback when Key Vault is not configured)
+/// </summary>
+public class ConfigurationSecretsManager : ISecretsManager
+{
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<ConfigurationSecretsManager> _logger;
+    
+    public ConfigurationSecretsManager(IConfiguration configuration, ILogger<ConfigurationSecretsManager> logger)
+    {
+        _configuration = configuration;
+        _logger = logger;
+    }
+    
+    public Task<string> GetSecretAsync(string secretName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning("Using configuration-based secrets (Key Vault not configured). Secret: {SecretName}", secretName);
+        
+        var secretValue = _configuration[secretName];
+        
+        if (string.IsNullOrEmpty(secretValue))
+        {
+            throw new InvalidOperationException($"Secret '{secretName}' not found in configuration. Add it to appsettings.json or environment variables.");
+        }
+        
+        return Task.FromResult(secretValue);
+    }
+    
+    public Task SetSecretAsync(string secretName, string secretValue, CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning("SetSecret not supported in configuration-based secrets manager. Secret: {SecretName}", secretName);
+        throw new NotSupportedException("Setting secrets is not supported when using configuration-based secrets manager. Use Azure Key Vault in production.");
     }
 }

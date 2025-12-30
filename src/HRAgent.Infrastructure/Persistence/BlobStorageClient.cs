@@ -26,10 +26,10 @@ public static class BlobStorageConfig
         if (isDevelopment)
         {
             // Local Azurite emulator
-            var connectionString = configuration.GetConnectionString("storage") 
+            var connectionString = configuration.GetConnectionString("storage")
                 ?? "UseDevelopmentStorage=true";
             
-            services.AddSingleton<BlobServiceClient>(_ => 
+            services.AddSingleton<BlobServiceClient>(_ =>
                 new BlobServiceClient(connectionString));
         }
         else
@@ -82,14 +82,13 @@ public class BlobStorageAuditLogger : IAuditLogger
 {
     private readonly BlobContainerClient _containerClient;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private bool _containerInitialized = false;
     
     public BlobStorageAuditLogger(BlobServiceClient blobServiceClient, IConfiguration configuration)
     {
         var containerName = configuration["BlobStorage:AuditLogsContainer"] ?? "audit-logs";
         _containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-        
-        // Ensure container exists
-        _containerClient.CreateIfNotExists(PublicAccessType.None);
         
         _jsonOptions = new JsonSerializerOptions
         {
@@ -98,8 +97,32 @@ public class BlobStorageAuditLogger : IAuditLogger
         };
     }
     
+    private async Task EnsureContainerExistsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_containerInitialized)
+        {
+            return;
+        }
+        
+        await _initLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_containerInitialized)
+            {
+                await _containerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken);
+                _containerInitialized = true;
+            }
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
+    
     public async Task LogAsync(AuditLogEntry entry, CancellationToken cancellationToken = default)
     {
+        await EnsureContainerExistsAsync(cancellationToken);
+        
         // Generate blob path: {yyyy}/{MM}/{dd}/{employeeId}_{timestamp}_{guid}.json
         var timestamp = entry.Timestamp;
         var blobPath = $"{timestamp.Year:D4}/{timestamp.Month:D2}/{timestamp.Day:D2}/" +
@@ -131,6 +154,8 @@ public class BlobStorageAuditLogger : IAuditLogger
     
     public async Task<IEnumerable<AuditLogEntry>> GetLogsAsync(string employeeId, DateOnly date, CancellationToken cancellationToken = default)
     {
+        await EnsureContainerExistsAsync(cancellationToken);
+        
         // List blobs in the date folder
         var prefix = $"{date.Year:D4}/{date.Month:D2}/{date.Day:D2}/{employeeId}_";
         var logs = new List<AuditLogEntry>();

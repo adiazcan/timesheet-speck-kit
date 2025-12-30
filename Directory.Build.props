@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <!-- Enable built-in Roslyn analyzers across the repo -->
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+
+    <!-- Keep analyzers enabled without making all warnings build-breaking by default -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

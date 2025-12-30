@@ -1,3 +1,4 @@
+using HRAgent.Api.Events;
 using HRAgent.Contracts.Factorial;
 using HRAgent.Contracts.Models;
 using HRAgent.Infrastructure.Security;
@@ -33,41 +34,42 @@ public class FactorialHRService
     private readonly ISecretsManager _secretsManager;
     private readonly ILogger<FactorialHRService> _logger;
     private readonly FactorialHRServiceOptions _options;
-    private SubmissionQueue? _submissionQueue;
+    private readonly ISubmissionFailedHandler? _submissionFailedHandler;
     private string? _apiKey;
+    private DateTimeOffset _apiKeyExpiration = DateTimeOffset.MinValue;
+    private static readonly TimeSpan ApiKeyCacheDuration = TimeSpan.FromHours(1);
 
     public FactorialHRService(
         HttpClient httpClient,
         ISecretsManager secretsManager,
         ILogger<FactorialHRService> logger,
+        ISubmissionFailedHandler? submissionFailedHandler = null,
         FactorialHRServiceOptions? options = null)
     {
         _httpClient = httpClient;
         _secretsManager = secretsManager;
         _logger = logger;
+        _submissionFailedHandler = submissionFailedHandler;
         _options = options ?? new FactorialHRServiceOptions();
     }
 
     /// <summary>
-    /// Sets the submission queue for enqueuing failed requests
-    /// (Injected separately to avoid circular dependency)
-    /// </summary>
-    public void SetSubmissionQueue(SubmissionQueue submissionQueue)
-    {
-        _submissionQueue = submissionQueue;
-    }
-
-    /// <summary>
-    /// Retrieves API key from Azure Key Vault (cached for performance)
+    /// Retrieves API key from Azure Key Vault (cached for 1 hour)
     /// </summary>
     private async Task<string> GetApiKeyAsync()
     {
-        if (!string.IsNullOrEmpty(_apiKey))
+        // Check if cached key is still valid
+        if (!string.IsNullOrEmpty(_apiKey) && DateTimeOffset.UtcNow < _apiKeyExpiration)
         {
             return _apiKey;
         }
 
+        // Fetch fresh API key
         _apiKey = await _secretsManager.GetSecretAsync("factorial-hr-api-key");
+        _apiKeyExpiration = DateTimeOffset.UtcNow.Add(ApiKeyCacheDuration);
+        
+        _logger.LogDebug("API key refreshed from Key Vault, expires at {Expiration}", _apiKeyExpiration);
+        
         return _apiKey;
     }
 
@@ -109,17 +111,19 @@ public class FactorialHRService
         {
             _logger.LogError(ex, "HTTP error during clock-in for employee {EmployeeId}", request.EmployeeId);
             
-            // Enqueue for retry if configured
-            if (_options.EnqueueFailedRequests && !_options.ThrowOnFailure && _submissionQueue != null)
+            // Publish event for retry queueing if configured
+            if (_options.EnqueueFailedRequests && !_options.ThrowOnFailure && _submissionFailedHandler != null)
             {
-                await _submissionQueue.EnqueueAsync(
-                    request.EmployeeId,
-                    "clock-in",
-                    request.Timestamp,
-                    conversationThreadId: string.Empty, // Will be set by caller
-                    messageId: string.Empty, // Will be set by caller
-                    errorMessage: ex.Message,
-                    statusCode: 502);
+                await _submissionFailedHandler.HandleAsync(new SubmissionFailedEvent
+                {
+                    EmployeeId = request.EmployeeId,
+                    Action = "clock-in",
+                    Timestamp = request.Timestamp,
+                    ConversationThreadId = string.Empty, // Will be set by caller
+                    MessageId = string.Empty, // Will be set by caller
+                    ErrorMessage = ex.Message,
+                    StatusCode = 502
+                });
                 
                 throw new FactorialHRException("Request queued for retry", ex);
             }
@@ -162,17 +166,19 @@ public class FactorialHRService
         {
             _logger.LogError(ex, "HTTP error during clock-out for employee {EmployeeId}", request.EmployeeId);
             
-            // Enqueue for retry if configured
-            if (_options.EnqueueFailedRequests && !_options.ThrowOnFailure && _submissionQueue != null)
+            // Publish event for retry queueing if configured
+            if (_options.EnqueueFailedRequests && !_options.ThrowOnFailure && _submissionFailedHandler != null)
             {
-                await _submissionQueue.EnqueueAsync(
-                    request.EmployeeId,
-                    "clock-out",
-                    request.Timestamp,
-                    conversationThreadId: string.Empty, // Will be set by caller
-                    messageId: string.Empty, // Will be set by caller
-                    errorMessage: ex.Message,
-                    statusCode: 502);
+                await _submissionFailedHandler.HandleAsync(new SubmissionFailedEvent
+                {
+                    EmployeeId = request.EmployeeId,
+                    Action = "clock-out",
+                    Timestamp = request.Timestamp,
+                    ConversationThreadId = string.Empty, // Will be set by caller
+                    MessageId = string.Empty, // Will be set by caller
+                    ErrorMessage = ex.Message,
+                    StatusCode = 502
+                });
                 
                 throw new FactorialHRException("Request queued for retry", ex);
             }

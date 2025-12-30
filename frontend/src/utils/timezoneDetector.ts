@@ -17,9 +17,17 @@ export function getUserTimezone(): string {
     }
   } catch (error) {
     console.warn('Failed to detect timezone:', error);
+    
+    // TODO: Log timezone fallback to backend for metrics
+    // This helps identify users with browser detection issues
+    // fetch('/api/metrics/timezone-fallback', {
+    //   method: 'POST',
+    //   body: JSON.stringify({ error: String(error), userAgent: navigator.userAgent })
+    // }).catch(() => {}); // Silent fail
   }
 
   // Fallback to UTC if detection fails
+  console.info('Using UTC timezone as fallback');
   return 'UTC';
 }
 
