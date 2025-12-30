@@ -304,8 +304,9 @@ infra/
 │   │   ├── cosmosdb.bicep
 │   │   └── container-app.bicep
 │   └── aca/                          # Azure Container Apps config
-└── docker-compose.dev.yml            # Local dev environment (MongoDB, Azurite)
 ```
+
+**Note**: Aspire 13 manages MongoDB and Azurite containers automatically via AppHost. No docker-compose.yml needed.
 
 **Structure Decision**: 
 - **Web application** chosen (backend API + frontend SPA)

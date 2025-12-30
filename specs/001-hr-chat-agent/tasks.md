@@ -26,12 +26,12 @@ description: "Task list for HR Chat Agent implementation"
 
 **Purpose**: Project initialization and basic structure for .NET 10 backend + Vite React frontend
 
-- [ ] T001 Create repository structure per plan.md (src/, frontend/, tests/, infra/, docker-compose.dev.yml)
-- [ ] T002 Initialize .NET 10 solution with AppHost, HRAgent.Api, HRAgent.Contracts, HRAgent.Infrastructure, HRAgent.ServiceDefaults projects
-- [ ] T003 [P] Initialize Vite React TypeScript project in frontend/ with shadcn/ui and Zustand dependencies
-- [ ] T004 [P] Configure ESLint, Prettier, StyleCop, and Roslyn analyzers for code quality
-- [ ] T005 [P] Create docker-compose.dev.yml with MongoDB and Azurite containers
-- [ ] T006 [P] Setup .gitignore for .NET, Node.js, and IDE files
+- [X] T001 Create repository structure per plan.md (src/, frontend/, tests/, infra/, docker-compose.dev.yml)
+- [X] T002 Initialize .NET 10 solution with AppHost, HRAgent.Api, HRAgent.Contracts, HRAgent.Infrastructure, HRAgent.ServiceDefaults projects
+- [X] T003 [P] Initialize Vite React TypeScript project in frontend/ with shadcn/ui and Zustand dependencies
+- [X] T004 [P] Configure ESLint, Prettier, StyleCop, and Roslyn analyzers for code quality
+- [X] T005 [P] Configure AppHost with MongoDB and Azurite for local development
+- [X] T006 [P] Setup .gitignore for .NET, Node.js, and IDE files
 
 ---
 

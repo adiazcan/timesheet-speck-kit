@@ -42,29 +42,7 @@ git checkout 001-hr-chat-agent
 
 ---
 
-## Step 2: Start Local Dependencies
-
-### Start MongoDB and Azure Storage Emulator
-
-```bash
-# Start Docker containers for local development
-docker-compose -f docker-compose.dev.yml up -d
-
-# Verify containers are running
-docker ps
-
-# Expected output:
-# - mongodb (port 27017)
-# - azurite (ports 10000-10002)
-```
-
-**Troubleshooting**:
-- If port 27017 is in use: Stop existing MongoDB or change port in `docker-compose.dev.yml`
-- If Docker not running: Start Docker Desktop and retry
-
----
-
-## Step 3: Configure Secrets
+## Step 2: Configure Secrets
 
 ### Backend Configuration
 
@@ -82,9 +60,7 @@ dotnet user-secrets set "AzureAI:ApiKey" "mock-key-123"
 dotnet user-secrets set "FactorialHR:BaseUrl" "http://localhost:9090"
 dotnet user-secrets set "FactorialHR:ApiKey" "sk_test_mock_123"
 
-# Set connection strings for local dev
-dotnet user-secrets set "ConnectionStrings:MongoDB" "mongodb://localhost:27017/hrapp"
-dotnet user-secrets set "ConnectionStrings:AzureStorage" "UseDevelopmentStorage=true"
+# Note: MongoDB and Azure Storage connection strings are managed by Aspire
 ```
 
 ### Frontend Configuration
@@ -101,7 +77,7 @@ EOF
 
 ---
 
-## Step 4: Install Dependencies
+## Step 3: Install Dependencies
 
 ### Backend
 
@@ -132,9 +108,9 @@ npm install
 
 ---
 
-## Step 5: Run the Application
+## Step 4: Run the Application
 
-### Option A: Using Aspire 13 (Recommended)
+### Using Aspire 13 (Recommended)
 
 **Terminal 1: Start Aspire AppHost**
 ```bash
@@ -143,6 +119,8 @@ dotnet run
 
 # Expected output:
 # ✅ Starting application...
+# ✅ MongoDB container starting...
+# ✅ Azurite (Azure Storage Emulator) starting...
 # ✅ API running on http://localhost:5000
 # ✅ Aspire Dashboard: http://localhost:15000
 ```
@@ -151,6 +129,7 @@ dotnet run
 - View all services (API, MongoDB, Azurite)
 - Monitor logs, traces, and metrics
 - Health check status
+- MongoDB and Azurite automatically started in containers
 
 **Terminal 2: Start Frontend Dev Server**
 ```bash
@@ -161,17 +140,7 @@ npm run dev
 # ✅ Vite dev server running on http://localhost:5173
 ```
 
-### Option B: Manual Start (Without Aspire)
-
-**Terminal 1: Start Backend API**
-```bash
-cd src/HRAgent.Api
-dotnet run
-
-# API will start on http://localhost:5000
-```
-
-**Terminal 2: Start Frontend**
+**Terminal 2: Start Frontend Dev Server**
 ```bash
 cd frontend
 npm run dev
@@ -179,9 +148,11 @@ npm run dev
 # Frontend will start on http://localhost:5173
 ```
 
+**Note**: Aspire automatically manages MongoDB and Azurite containers. No need to run docker-compose separately.
+
 ---
 
-## Step 6: Access the Application
+## Step 5: Access the Application
 
 1. **Open Frontend**: Navigate to http://localhost:5173
 2. **Mock Login**: Enter any employee ID (e.g., `emp_001`)
@@ -199,7 +170,7 @@ npm run dev
 
 ---
 
-## Step 7: Verify Everything Works
+## Step 6: Verify Everything Works
 
 ### Health Check
 
