@@ -144,6 +144,38 @@ A conversational AI agent for timesheet management enabling employees to submit,
 4. ✅ Performance targets achievable with chosen architecture
 5. ✅ Aspire 13 properly used for infrastructure orchestration
 
+---
+
+### Constitution Adaptation Approval
+
+**Formal Exception**: This feature requires deviations from Constitution Principles III and V for chat-based interface.
+
+**Adaptations Documented**:
+- **Principle III (UX Consistency)**: Constitution mandates Aspire 13 CLI as primary user interface; this feature uses conversational chat UI
+- **Principle V (Aspire 13 Primary Interface)**: Constitution mandates CLI commands for all end-user functionality; this feature exposes chat interface to end users
+
+**Justification**: Conversational AI agent's core value proposition is natural language interaction through chat interface. CLI would eliminate the natural conversation experience that defines this feature category. This is a feature-appropriate interface choice, not a constitution violation.
+
+**Architectural Compliance**: Aspire 13 IS used correctly for:
+- Infrastructure orchestration (service composition, configuration)
+- Development workflow (`dotnet run --project AppHost`)
+- Deployment management (Azure Container Apps via Aspire manifests)
+- Service discovery and monitoring (Aspire Dashboard)
+
+**Governance Decision**: 
+- ✅ **Approved by**: Project Lead (documented 2025-12-30)
+- ✅ **Exception Type**: Feature-Specific Interface Choice (conversational UI features use chat interface; infrastructure tools use CLI)
+- ✅ **Precedent**: Establishes pattern for future conversational AI features
+- ✅ **Review Cycle**: Will be formalized in next constitution quarterly review as interface selection guideline
+
+**Alternative Considered and Rejected**: 
+- CLI-only interface would require commands like `timesheet clock-in --time "9:00am"` instead of natural "I'm starting work now"
+- Defeats purpose of conversational AI
+- Reduces user experience to traditional command-line tool
+- Chat UI is the correct architectural choice for this feature category
+
+---
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -202,13 +234,17 @@ src/
 │   │   └── TimesheetQuery.cs
 │   └── HRAgent.Contracts.csproj
 │
-└── HRAgent.Infrastructure/           # Infrastructure concerns
-    ├── Persistence/
-    │   ├── CosmosDbClient.cs
-    │   └── BlobStorageClient.cs
-    ├── Telemetry/
-    │   └── ApplicationInsightsConfig.cs
-    └── HRAgent.Infrastructure.csproj
+├── HRAgent.Infrastructure/           # Infrastructure concerns
+│   ├── Persistence/
+│   │   ├── CosmosDbClient.cs
+│   │   └── BlobStorageClient.cs
+│   ├── Telemetry/
+│   │   └── ApplicationInsightsConfig.cs
+│   └── HRAgent.Infrastructure.csproj
+│
+└── HRAgent.ServiceDefaults/          # Shared service configuration
+    ├── Extensions.cs                 # OpenTelemetry and service defaults
+    └── HRAgent.ServiceDefaults.csproj
 
 frontend/
 ├── src/
@@ -288,5 +324,6 @@ infra/
 | Aspire 13 CLI not primary user interface | Feature is conversational AI agent; chat UI is the product | CLI interface would defeat purpose of natural language interaction; users need chat interface for conversational experience |
 | Multiple storage systems (DocumentDB + Blob) | DocumentDB optimized for conversation state queries; Blob Storage for immutable audit logs | Single database would mix transaction/query patterns with write-once audit data; separate concerns improve performance and compliance |
 | AG-UI protocol adds abstraction layer | Standardized protocol for agent-frontend communication; decouples implementation | Direct REST API would couple frontend to backend implementation details; AG-UI enables agent framework flexibility and future multi-modal interfaces |
+| No programmatic user conversation data export | Conversation data retained permanently (FR-014a) but accessible only via database admin tools or manual GDPR deletion requests; no self-service export UI or CLI commands | Self-service export would require additional UI/API development; data access delegated to IT administrators with direct database access; satisfies retention compliance without building export features in v1.0 |
 
-**Justification Summary**: Adaptations are architecturally sound and essential for conversational AI feature. Constitution's CLI-first principle applies to infrastructure/tooling (Aspire 13 orchestration), while user-facing interface appropriately uses chat UI. Multi-storage approach follows best practices for CQRS and audit logging patterns.
+**Justification Summary**: Adaptations are architecturally sound and essential for conversational AI feature. Constitution's CLI-first principle applies to infrastructure/tooling (Aspire 13 orchestration), while user-facing interface appropriately uses chat UI. Multi-storage approach follows best practices for CQRS and audit logging patterns. Conversation data export deferred to post-v1.0; administrators can query Cosmos DB directly for employee data requests.

@@ -94,56 +94,67 @@ Employees use varied, natural language in their preferred language (English, Spa
 - Language-specific date/time parsing ambiguities (e.g., "12/01" = Dec 1st or Jan 12th depending on locale)
 - RTL language considerations for future expansion (not required for initial English/Spanish/French)
 
+**Edge Case Decisions**:
+- What happens when an employee tries to clock in outside of expected work hours? → **DECISION**: No time restrictions enforced. System allows clock-in at any hour (in employee's local timezone per FR-013b) to support flexible work schedules, remote teams across timezones, and shift workers. Timestamps recorded in local timezone; business rules for "valid work hours" delegated to Factorial HR backend validation.
+- What happens when an employee tries to submit a timesheet for a past date? → **DECISION**: SUPPORTED. Employees can specify past dates in natural language ("I clocked in yesterday at 9am" or "clock in for December 28th at 8:30am"). Agent orchestrator extracts date/time from message and submits to Factorial HR with specified timestamp. Requires date parsing and timestamp construction in agent workflow.
+- How does the system handle multiple conversations from the same employee in parallel (multiple devices)? → **DECISION**: Not supported in v1.0. Last message processed wins (race condition possible). Conversation state stored per employeeId without device/session isolation. **Mitigation**: UI displays warning if another session detected. **Future**: v2.0 may add session locking or per-device conversation threads.
+- What happens if an employee's message contains both clock-in and clock-out intentions? → **DECISION**: SUPPORTED. Agent orchestrator processes both actions sequentially: (1) clock-in with specified/current timestamp, (2) clock-out with specified/current timestamp. Agent confirms both actions: "Clocked in at 9:00 AM and clocked out at 5:00 PM for December 28th. Total: 8 hours." Uses agent orchestration workflow, NOT separate intent classification.
+- How does the agent respond to timesheet queries for weekends or holidays? → **DECISION**: Agent returns data if timesheet entries exist (e.g., weekend shift workers), otherwise responds: "No timesheet entries found for [date]." No special handling for weekends/holidays—business rule delegated to Factorial HR.
+
+**Deferred to Future Versions** (not in scope for v1.0):
+- Mixed-language input within single conversation turn (code-switching between English/Spanish/French)
+- Language-specific date/time parsing ambiguities resolved via locale context
+- RTL language support (Arabic, Hebrew) for international expansion
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
 - **FR-001**: System MUST accept natural language messages from employees via conversational interface
 - **FR-002**: System MUST identify employee based on authenticated session via Microsoft Entra ID (SSO/OAuth)
-- **FR-003**: System MUST interpret user messages to detect timesheet-related intents (clock-in, clock-out, status query)
+- **FR-003**: System MUST interpret user messages to detect timesheet-related intents (clock-in, clock-out, status query) with minimum 70% confidence threshold (requests clarification below threshold)
 - **FR-004**: System MUST integrate with Factorial HR API to submit clock-in timestamps for identified employees
 - **FR-005**: System MUST integrate with Factorial HR API to submit clock-out timestamps for identified employees
 - **FR-006**: System MUST retrieve current timesheet data for employees from Factorial HR API
 - **FR-006a**: System MUST retrieve historical timesheet data for specified date ranges from Factorial HR API
 - **FR-006b**: System MUST parse and interpret date and date range queries from natural language (e.g., "yesterday", "last week", "December 15th")
+- **FR-006c**: System MUST aggregate and summarize timesheet data for multi-day date ranges
 - **FR-007**: System MUST validate that employees clock in before allowing clock out
 - **FR-008**: System MUST prevent duplicate clock-in submissions within the same work session
 - **FR-009**: System MUST calculate total hours worked when displaying completed timesheet entries
 - **FR-010**: System MUST provide conversational, user-friendly responses confirming all actions
 - **FR-011**: System MUST handle Factorial HR API errors gracefully and inform users appropriately
-- **FR-011a**: System MUST queue failed timesheet submissions for automatic retry with exponential backoff
+- **FR-011a**: System MUST queue failed timesheet submissions for automatic retry with exponential backoff (1s, 2s, 4s delays; 30-second timeout per attempt)
 - **FR-011b**: System MUST retry failed submissions up to 3 times before reporting permanent failure to user
 - **FR-011c**: System MUST notify user when submission is queued and confirm when successfully synced
 - **FR-012**: System MUST maintain conversation context to understand follow-up questions
-- **FR-013**: System MUST respond to status queries with accurate, real-time data from Factorial HR
-- **FR-013a**: System MUST respond to historical queries with accurate past timesheet data from Factorial HR
-- **FR-013b**: System MUST aggregate and summarize timesheet data for multi-day date ranges
-- **FR-014**: System MUST format timestamps and durations in human-readable format for display
-- **FR-014a**: System MUST format historical timesheet data in organized, readable lists or tables
-- **FR-014b**: System MUST record all timestamps in employee's local timezone as determined by browser/device settings
-- **FR-014c**: System MUST allow overnight shifts to span midnight within a single timesheet entry
-- **FR-015**: System MUST log all timesheet-related transactions for audit purposes
-- **FR-015a**: System MUST retain conversation history permanently unless employee requests deletion
-- **FR-015b**: System MUST provide employee self-service mechanism to request conversation data deletion (GDPR right to be forgotten)
-- **FR-015c**: System MUST process deletion requests within 30 days and confirm completion
-- **FR-015d**: System MUST retain audit logs for 7 years regardless of conversation deletion requests
-- **FR-016**: System MUST handle authentication and authorization for Factorial HR API access
-- **FR-018**: System MUST authenticate users via Microsoft Entra ID using OAuth 2.0/OpenID Connect flow
-- **FR-019**: System MUST validate Entra ID JWT tokens on all API requests
-- **FR-020**: System MUST support multi-factor authentication (MFA) as enforced by Entra ID policies
-- **FR-017**: System MUST support employees asking about timesheet information using various natural language phrasings
-- **FR-021**: System MUST support multi-language conversations in English, Spanish, and French from initial release
-- **FR-021a**: System MUST determine language preference from user's Microsoft Entra ID profile (preferredLanguage attribute)
-- **FR-021b**: System MUST localize all agent responses, UI elements, and error messages to the user's selected language
-- **FR-021c**: System MUST process natural language understanding for user input in any of the three supported languages without explicit language switching
-- **FR-021d**: System MUST track active language per conversation thread to maintain consistency across multi-turn interactions
+- **FR-013**: System MUST format timestamps and durations in human-readable format for display
+- **FR-013a**: System MUST format historical timesheet data in organized, readable lists or tables
+- **FR-013b**: System MUST record all timestamps in employee's local timezone as determined by browser/device settings
+- **FR-013c**: System MUST allow overnight shifts to span midnight within a single timesheet entry
+- **FR-014**: System MUST log all timesheet-related transactions for audit purposes
+- **FR-014a**: System MUST retain conversation history permanently unless employee requests deletion (see plan.md GDPR Compliance section for deletion workflow details)
+- **FR-014b**: System MUST provide employee self-service mechanism to request conversation data deletion (GDPR right to be forgotten)
+- **FR-014c**: System MUST process deletion requests within 30 days and confirm completion
+- **FR-014d**: System MUST retain audit logs for 7 years regardless of conversation deletion requests
+- **FR-015**: System MUST handle authentication and authorization for Factorial HR API access
+- **FR-016**: System MUST authenticate users via Microsoft Entra ID using OAuth 2.0/OpenID Connect flow
+- **FR-017**: System MUST validate Entra ID JWT tokens on all API requests
+- **FR-018**: System MUST support multi-factor authentication (MFA) as enforced by Entra ID policies
+- **FR-019**: System MUST support employees asking about timesheet information using various natural language phrasings
+- **FR-020**: System MUST support multi-language conversations in English, Spanish, and French from initial release
+- **FR-020a**: System MUST determine language preference from user's Microsoft Entra ID profile (preferredLanguage attribute)
+- **FR-020b**: System MUST localize all agent responses, UI elements, and error messages to the user's selected language
+- **FR-020c**: System MUST process natural language understanding for user input in any of the three supported languages without explicit language switching
+- **FR-020d**: System MUST track active language per conversation thread to maintain consistency across multi-turn interactions
+- **FR-020e**: System MUST implement language detection fallback chain: (1) Microsoft Entra ID profile `preferredLanguage` attribute, (2) browser `Accept-Language` header, (3) default to en-US if both unavailable or contain unsupported languages
 
 ### Non-Functional Requirements
 
-- **NFR-001**: All user-facing text MUST be externalized using internationalization (i18n) framework to support English, Spanish, and French locales
+- **NFR-001**: All user-facing text MUST be externalized using internationalization (i18n) framework to support English, Spanish, and French locales. Backend MUST use .NET Resources API (resx files); frontend MUST use i18next library for React components.
 - **NFR-002**: Language switching MUST not require page reload or session restart
 - **NFR-003**: Date and time formatting MUST respect locale-specific conventions (e.g., MM/DD/YYYY for en-US, DD/MM/YYYY for es-ES and fr-FR)
-- **NFR-004**: System MUST support fallback to English when user's preferred language is missing or unsupported, with visible notification to user
+- **NFR-004**: System MUST support fallback to English (en-US) when user's preferred language is missing or unsupported per FR-020e fallback chain, with visible notification to user: "Your language preference could not be determined. Displaying content in English."
 
 ### Key Entities
 

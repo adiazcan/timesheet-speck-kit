@@ -18,7 +18,7 @@ Primary entity representing an employee's conversation session with the HR agent
 
 **Container**: `conversations`  
 **Partition Key**: `/employeeId`  
-**TTL**: 30 days (2,592,000 seconds)
+**TTL**: Disabled by default (permanent retention per FR-015a, GDPR deletion via manual process)
 
 ```csharp
 public class ConversationThread
@@ -72,10 +72,11 @@ public class ConversationThread
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     
     /// <summary>
-    /// Time-to-live in seconds (automatic deletion after expiry)
+    /// Time-to-live in seconds (null = permanent retention per FR-015a and GDPR requirements)
+    /// Conversations only deleted via explicit user deletion request (FR-015b-c)
     /// </summary>
     [JsonPropertyName("ttl")]
-    public int? Ttl { get; set; } = 2592000; // 30 days
+    public int? Ttl { get; set; } = null; // null = permanent, override for temporary conversations
     
     /// <summary>
     /// Document type discriminator for Cosmos DB queries
