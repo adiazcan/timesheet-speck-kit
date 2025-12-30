@@ -62,7 +62,7 @@ An employee wants to review their timesheet entries from previous days, weeks, o
 
 ### User Story 4 - Conversational Understanding of Time-Related Intents (Priority: P4)
 
-Employees use varied, natural language to express timesheet-related actions. The agent understands different phrasings and synonyms, such as "starting my shift", "going home", "check my hours", "did I punch in?", etc. The agent also handles casual conversation gracefully, providing appropriate responses to greetings, thanks, and off-topic messages.
+Employees use varied, natural language in their preferred language (English, Spanish, or French) to express timesheet-related actions. The agent understands different phrasings and synonyms across all three languages, such as "starting my shift" / "empezando mi turno" / "commencer mon équipe", "going home" / "saliendo" / "rentrer chez moi", "check my hours" / "ver mis horas" / "voir mes heures", etc. The agent also handles casual conversation gracefully, providing appropriate responses to greetings, thanks, and off-topic messages in the user's language.
 
 **Why this priority**: This enhances the conversational experience and makes the agent feel more natural and user-friendly. While important for user satisfaction, the core timesheet functionality (P1-P3) can work with simpler command-style inputs initially.
 
@@ -83,19 +83,23 @@ Employees use varied, natural language to express timesheet-related actions. The
 
 - What happens when an employee tries to clock in outside of expected work hours (very early morning or late night)?
 - How does the system handle employees who forget to clock out and try to clock in the next day?
-- What happens when an employee's clock-in/out spans midnight (overnight shift)?
-- How does the system respond if Factorial HR API returns an error or times out?
+- What happens when an employee's clock-in/out spans midnight (overnight shift)? → Allowed within single entry, recorded in local timezone
+- How does the system respond if Factorial HR API returns an error or times out? → Queue submission with automatic retry (exponential backoff, max 3 retries)
 - What happens when an employee tries to submit a timesheet for a past date?
 - How does the system handle multiple conversations from the same employee in parallel (multiple devices)?
 - What happens if an employee's message contains both clock-in and clock-out intentions?
 - How does the agent respond to timesheet queries for weekends or holidays?
+- User profile language preference missing or set to unsupported language → Default to English with notification
+- Mixed-language input within single conversation turn (e.g., code-switching) → Process in detected primary language
+- Language-specific date/time parsing ambiguities (e.g., "12/01" = Dec 1st or Jan 12th depending on locale)
+- RTL language considerations for future expansion (not required for initial English/Spanish/French)
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
 - **FR-001**: System MUST accept natural language messages from employees via conversational interface
-- **FR-002**: System MUST identify employee based on authenticated session or provided credentials
+- **FR-002**: System MUST identify employee based on authenticated session via Microsoft Entra ID (SSO/OAuth)
 - **FR-003**: System MUST interpret user messages to detect timesheet-related intents (clock-in, clock-out, status query)
 - **FR-004**: System MUST integrate with Factorial HR API to submit clock-in timestamps for identified employees
 - **FR-005**: System MUST integrate with Factorial HR API to submit clock-out timestamps for identified employees
@@ -107,23 +111,57 @@ Employees use varied, natural language to express timesheet-related actions. The
 - **FR-009**: System MUST calculate total hours worked when displaying completed timesheet entries
 - **FR-010**: System MUST provide conversational, user-friendly responses confirming all actions
 - **FR-011**: System MUST handle Factorial HR API errors gracefully and inform users appropriately
+- **FR-011a**: System MUST queue failed timesheet submissions for automatic retry with exponential backoff
+- **FR-011b**: System MUST retry failed submissions up to 3 times before reporting permanent failure to user
+- **FR-011c**: System MUST notify user when submission is queued and confirm when successfully synced
 - **FR-012**: System MUST maintain conversation context to understand follow-up questions
 - **FR-013**: System MUST respond to status queries with accurate, real-time data from Factorial HR
 - **FR-013a**: System MUST respond to historical queries with accurate past timesheet data from Factorial HR
 - **FR-013b**: System MUST aggregate and summarize timesheet data for multi-day date ranges
 - **FR-014**: System MUST format timestamps and durations in human-readable format for display
 - **FR-014a**: System MUST format historical timesheet data in organized, readable lists or tables
+- **FR-014b**: System MUST record all timestamps in employee's local timezone as determined by browser/device settings
+- **FR-014c**: System MUST allow overnight shifts to span midnight within a single timesheet entry
 - **FR-015**: System MUST log all timesheet-related transactions for audit purposes
+- **FR-015a**: System MUST retain conversation history permanently unless employee requests deletion
+- **FR-015b**: System MUST provide employee self-service mechanism to request conversation data deletion (GDPR right to be forgotten)
+- **FR-015c**: System MUST process deletion requests within 30 days and confirm completion
+- **FR-015d**: System MUST retain audit logs for 7 years regardless of conversation deletion requests
 - **FR-016**: System MUST handle authentication and authorization for Factorial HR API access
+- **FR-018**: System MUST authenticate users via Microsoft Entra ID using OAuth 2.0/OpenID Connect flow
+- **FR-019**: System MUST validate Entra ID JWT tokens on all API requests
+- **FR-020**: System MUST support multi-factor authentication (MFA) as enforced by Entra ID policies
 - **FR-017**: System MUST support employees asking about timesheet information using various natural language phrasings
+- **FR-021**: System MUST support multi-language conversations in English, Spanish, and French from initial release
+- **FR-021a**: System MUST determine language preference from user's Microsoft Entra ID profile (preferredLanguage attribute)
+- **FR-021b**: System MUST localize all agent responses, UI elements, and error messages to the user's selected language
+- **FR-021c**: System MUST process natural language understanding for user input in any of the three supported languages without explicit language switching
+- **FR-021d**: System MUST track active language per conversation thread to maintain consistency across multi-turn interactions
+
+### Non-Functional Requirements
+
+- **NFR-001**: All user-facing text MUST be externalized using internationalization (i18n) framework to support English, Spanish, and French locales
+- **NFR-002**: Language switching MUST not require page reload or session restart
+- **NFR-003**: Date and time formatting MUST respect locale-specific conventions (e.g., MM/DD/YYYY for en-US, DD/MM/YYYY for es-ES and fr-FR)
+- **NFR-004**: System MUST support fallback to English when user's preferred language is missing or unsupported, with visible notification to user
 
 ### Key Entities
 
 - **Employee**: Represents a user of the system; identified by employee ID, name, and authentication credentials; associated with timesheet entries in Factorial HR
 - **Timesheet Entry**: Represents a single work session; contains clock-in timestamp, clock-out timestamp (optional if session in progress), employee ID, date, and calculated duration; can be current or historical
 - **Date Range Query**: Represents a request for historical timesheet data; contains start date, end date (optional for single-day queries), and formatting preferences for response
-- **Conversation Context**: Represents the ongoing dialogue with an employee; tracks current state (clocked in/out), last message timestamp, and intent history for contextual responses
+- **Conversation Context**: Represents the ongoing dialogue with an employee; tracks current state (clocked in/out), last message timestamp, and intent history for contextual responses; stored permanently with employee right to request deletion per GDPR
 - **Factorial HR Session**: Represents authenticated connection to Factorial HR API; manages API credentials, tokens, and request/response handling
+
+## Clarifications
+
+### Session 2025-12-30
+
+- Q: How should the system authenticate employees to ensure secure access to timesheet data? → A: SSO/OAuth integration with Microsoft Entra ID
+- Q: How should the system handle clock-in/out timestamps when an employee's shift spans midnight or when employees work across different timezones? → A: Record timestamps in employee's local timezone only
+- Q: When Factorial HR API is temporarily unavailable or returns errors, how should the system handle queued timesheet submissions? → A: Queue failed submissions with automatic retry (exponential backoff, max 3 retries)
+- Q: What level of conversation data retention and privacy controls are required for compliance (GDPR, employee data protection)? → A: Permanent conversation storage with employee right to request deletion
+- Q: Should the agent support multiple languages for international employees, or start with English-only? → A: Multi-language support from Day 1 (English, Spanish, French)
 
 ## Success Criteria *(mandatory)*
 
@@ -138,3 +176,4 @@ Employees use varied, natural language to express timesheet-related actions. The
 - **SC-006**: 95% of timesheet submissions to Factorial HR succeed on first attempt (excluding API outages)
 - **SC-007**: Employees report reduced time spent on timesheet management by at least 50% compared to manual HR system entry
 - **SC-008**: System maintains 99.5% uptime for timesheet submission availability during business hours
+- **SC-009**: System correctly interprets timesheet-related intents with at least 90% accuracy across all three supported languages (English, Spanish, French) for common phrasings

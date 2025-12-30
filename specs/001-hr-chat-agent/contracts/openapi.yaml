@@ -1,0 +1,531 @@
+openapi: 3.0.3
+info:
+  title: HR Chat Agent API
+  description: |
+    Conversational AI agent for timesheet management using AG-UI protocol.
+    Enables employees to clock in/out, query timesheet status, and view historical timesheets via natural language conversation.
+  version: 1.0.0
+  contact:
+    name: HR Agent Team
+    email: support@example.com
+
+servers:
+  - url: https://api.hrapp.example.com
+    description: Production API
+  - url: http://localhost:5000
+    description: Local development (Aspire 13)
+
+tags:
+  - name: conversation
+    description: AG-UI conversation endpoints
+  - name: health
+    description: Health check and monitoring
+  - name: admin
+    description: Administrative endpoints (internal)
+
+paths:
+  /api/conversation:
+    post:
+      tags:
+        - conversation
+      summary: Send message to HR agent
+      description: |
+        Initiates or continues a conversation with the HR agent using AG-UI protocol.
+        Returns Server-Sent Events (SSE) stream of AG-UI events.
+      operationId: sendConversationMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationRequest'
+            examples:
+              clockInMessage:
+                summary: Clock-in request
+                value:
+                  message: "I'm starting work now"
+                  sessionId: "sess_abc123"
+                  employeeId: "emp_001"
+                  metadata:
+                    userAgent: "Mozilla/5.0..."
+                    deviceType: "desktop"
+                    timezone: "America/New_York"
+              statusQuery:
+                summary: Status query
+                value:
+                  message: "Am I clocked in?"
+                  sessionId: "sess_abc123"
+                  employeeId: "emp_001"
+                  threadId: "thread_xyz789"
+      responses:
+        '200':
+          description: AG-UI event stream (Server-Sent Events)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                format: event-stream
+              examples:
+                eventStream:
+                  summary: Sample AG-UI event stream
+                  value: |
+                    data: {"type":"message.start","timestamp":1704067200000,"messageId":"msg_001"}
+                    
+                    data: {"type":"message.content","timestamp":1704067201000,"messageId":"msg_001","content":"I'll clock you in right now..."}
+                    
+                    data: {"type":"tool_call.start","timestamp":1704067202000,"toolCallId":"tool_001","name":"factorial_clock_in","input":{"employeeId":"emp_001"}}
+                    
+                    data: {"type":"tool_call.end","timestamp":1704067203000,"toolCallId":"tool_001","output":{"success":true,"clockInTime":"2024-01-01T08:00:00Z"}}
+                    
+                    data: {"type":"message.content","timestamp":1704067204000,"messageId":"msg_001","content":" You're clocked in at 8:00 AM. Have a great day!"}
+                    
+                    data: {"type":"message.end","timestamp":1704067205000,"messageId":"msg_001","metadata":{"intent":"clock-in","confidence":0.98}}
+        '400':
+          description: Bad request (invalid message format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (invalid employee ID or session)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/conversation/{threadId}:
+    get:
+      tags:
+        - conversation
+      summary: Get conversation history
+      description: Retrieves complete conversation thread for a given thread ID
+      operationId: getConversationThread
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          description: Conversation thread identifier
+          schema:
+            type: string
+          example: thread_xyz789
+      responses:
+        '200':
+          description: Conversation thread retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationThread'
+        '404':
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/health:
+    get:
+      tags:
+        - health
+      summary: Health check
+      description: Returns service health status
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                version: 1.0.0
+                timestamp: "2024-01-01T12:00:00Z"
+                dependencies:
+                  cosmosDb: healthy
+                  blobStorage: healthy
+                  factorialHr: healthy
+                  azureAI: healthy
+
+  /api/health/ready:
+    get:
+      tags:
+        - health
+      summary: Readiness check
+      description: Returns whether service is ready to accept traffic
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: true
+        '503':
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: false
+
+  /api/admin/conversations:
+    get:
+      tags:
+        - admin
+      summary: List conversations (admin only)
+      description: Retrieves list of conversations with filtering and pagination
+      operationId: listConversations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: employeeId
+          in: query
+          description: Filter by employee ID
+          schema:
+            type: string
+          example: emp_001
+        - name: startDate
+          in: query
+          description: Filter conversations created after this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2024-01-01T00:00:00Z"
+        - name: endDate
+          in: query
+          description: Filter conversations created before this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2024-01-31T23:59:59Z"
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Results per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationListResponse'
+
+components:
+  schemas:
+    ConversationRequest:
+      type: object
+      required:
+        - message
+        - sessionId
+        - employeeId
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: User message content
+          example: "I'm starting work now"
+        sessionId:
+          type: string
+          description: Session identifier for conversation continuity
+          example: sess_abc123
+        employeeId:
+          type: string
+          description: Employee ID from authentication
+          example: emp_001
+        threadId:
+          type: string
+          description: Optional thread ID for resuming existing conversation
+          example: thread_xyz789
+        metadata:
+          type: object
+          properties:
+            userAgent:
+              type: string
+              example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)..."
+            deviceType:
+              type: string
+              enum: [desktop, mobile, tablet]
+              example: desktop
+            timezone:
+              type: string
+              example: America/New_York
+
+    ConversationThread:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique thread identifier
+          example: thread_xyz789
+        employeeId:
+          type: string
+          example: emp_001
+        sessionId:
+          type: string
+          example: sess_abc123
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMessage'
+        state:
+          $ref: '#/components/schemas/ConversationState'
+        userMetadata:
+          $ref: '#/components/schemas/UserMetadata'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T08:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T09:30:00Z"
+
+    ConversationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          example: msg_001
+        role:
+          type: string
+          enum: [user, assistant]
+          example: user
+        content:
+          type: string
+          example: "I'm starting work now"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T08:00:00Z"
+        intent:
+          type: string
+          enum: [clock-in, clock-out, status-query, historical-query, chitchat]
+          nullable: true
+          example: clock-in
+        intentConfidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          nullable: true
+          example: 0.98
+        toolCalls:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolCall'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ConversationState:
+      type: object
+      properties:
+        isClockedIn:
+          type: boolean
+          example: true
+        lastClockIn:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2024-01-01T08:00:00Z"
+        lastClockOut:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        lastIntent:
+          type: string
+          nullable: true
+          example: clock-in
+        currentActivity:
+          type: string
+          nullable: true
+          example: null
+        contextMemory:
+          type: object
+          additionalProperties: true
+
+    ToolCall:
+      type: object
+      properties:
+        id:
+          type: string
+          example: tool_001
+        name:
+          type: string
+          example: factorial_clock_in
+        startTime:
+          type: string
+          format: date-time
+          example: "2024-01-01T08:00:01Z"
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2024-01-01T08:00:02Z"
+        input:
+          type: object
+          additionalProperties: true
+        output:
+          type: object
+          additionalProperties: true
+        error:
+          $ref: '#/components/schemas/ToolCallError'
+        status:
+          type: string
+          enum: [pending, success, failed]
+          example: success
+
+    ToolCallError:
+      type: object
+      properties:
+        code:
+          type: string
+          example: FACTORIAL_API_ERROR
+        message:
+          type: string
+          example: Failed to connect to Factorial HR API
+        details:
+          type: object
+          additionalProperties: true
+
+    UserMetadata:
+      type: object
+      properties:
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        timezone:
+          type: string
+          example: America/New_York
+        language:
+          type: string
+          example: en
+        department:
+          type: string
+          nullable: true
+          example: Engineering
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: INVALID_REQUEST
+            message:
+              type: string
+              example: Message content is required
+            details:
+              type: object
+              additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T08:00:00Z"
+        requestId:
+          type: string
+          example: req_abc123
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        version:
+          type: string
+          example: 1.0.0
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        dependencies:
+          type: object
+          properties:
+            cosmosDb:
+              type: string
+              enum: [healthy, unhealthy]
+              example: healthy
+            blobStorage:
+              type: string
+              enum: [healthy, unhealthy]
+              example: healthy
+            factorialHr:
+              type: string
+              enum: [healthy, unhealthy]
+              example: healthy
+            azureAI:
+              type: string
+              enum: [healthy, unhealthy]
+              example: healthy
+
+    ConversationListResponse:
+      type: object
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationThread'
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            pageSize:
+              type: integer
+              example: 20
+            totalCount:
+              type: integer
+              example: 150
+            totalPages:
+              type: integer
+              example: 8
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for admin endpoints
+
+security: []
